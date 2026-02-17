@@ -12,6 +12,20 @@ Also prints the buyer-side service_requirement format for testing.
 """
 
 import json
+import os
+from pathlib import Path
+
+# Try to load SUPABASE_URL from .env if not in environment
+_env_file = Path(__file__).resolve().parent.parent / ".env"
+if _env_file.exists():
+    for line in _env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+_SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://<YOUR_SUPABASE_PROJECT>.supabase.co")
+_FUNCTIONS_BASE = f"{_SUPABASE_URL}/functions/v1"
 
 # ============================================================
 # MVP Offerings (Section 32.2: limit_order + cancel_order only)
@@ -95,13 +109,13 @@ SENTINEL_RESOURCES = [
     {
         "name": "get_service_status",
         "description": "Is SENTINEL online? Returns version, chain, active order count.",
-        "url": "https://<YOUR_SUPABASE_PROJECT>.supabase.co/functions/v1/get-service-status",
+        "url": f"{_FUNCTIONS_BASE}/get-service-status",
         "parameters": {},
     },
     {
         "name": "is_token_supported",
         "description": "Check if a token has a V2 pair with VIRTUAL (required for trading).",
-        "url": "https://<YOUR_SUPABASE_PROJECT>.supabase.co/functions/v1/is-token-supported",
+        "url": f"{_FUNCTIONS_BASE}/is-token-supported",
         "parameters": {
             "type": "object",
             "properties": {
@@ -113,7 +127,7 @@ SENTINEL_RESOURCES = [
     {
         "name": "get_limit_order_quote",
         "description": "Pre-trade quote: estimated output, fees, routing, price impact.",
-        "url": "https://<YOUR_SUPABASE_PROJECT>.supabase.co/functions/v1/get-limit-order-quote",
+        "url": f"{_FUNCTIONS_BASE}/get-limit-order-quote",
         "parameters": {
             "type": "object",
             "properties": {
@@ -127,7 +141,7 @@ SENTINEL_RESOURCES = [
     {
         "name": "get_order_status",
         "description": "Get status and fill details for a specific order.",
-        "url": "https://<YOUR_SUPABASE_PROJECT>.supabase.co/functions/v1/get-order-status",
+        "url": f"{_FUNCTIONS_BASE}/get-order-status",
         "parameters": {
             "type": "object",
             "properties": {
@@ -139,7 +153,7 @@ SENTINEL_RESOURCES = [
     {
         "name": "get_active_orders",
         "description": "All open (non-terminal) orders for a buyer wallet.",
-        "url": "https://<YOUR_SUPABASE_PROJECT>.supabase.co/functions/v1/get-active-orders",
+        "url": f"{_FUNCTIONS_BASE}/get-active-orders",
         "parameters": {
             "type": "object",
             "properties": {
@@ -155,7 +169,7 @@ SENTINEL_RESOURCES = [
             "Returns top pools from Aave, Moonwell, Morpho, Aerodrome, etc. "
             "Data sourced from DeFiLlama, refreshed every 10 minutes."
         ),
-        "url": "https://<YOUR_SUPABASE_PROJECT>.supabase.co/functions/v1/get-yield-options",
+        "url": f"{_FUNCTIONS_BASE}/get-yield-options",
         "parameters": {
             "type": "object",
             "properties": {
@@ -203,7 +217,10 @@ def main():
     print("-" * 60)
     print()
     print("## 2. RESOURCES (paste into ACP portal → Agent → Resources)")
-    print("   ⚠️  Replace <YOUR_SUPABASE_PROJECT> with your actual project ID")
+    if "<YOUR_SUPABASE_PROJECT>" in _FUNCTIONS_BASE:
+        print("   ⚠️  Set SUPABASE_URL in .env to get real URLs")
+    else:
+        print(f"   ✅ URLs using: {_FUNCTIONS_BASE}")
     print()
     for resource in SENTINEL_RESOURCES:
         print(f"### {resource['name']}")

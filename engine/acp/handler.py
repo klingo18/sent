@@ -25,6 +25,7 @@ from engine.config import (
     MAX_CONCURRENT_ORDERS,
 )
 from engine.acp.offerings import OFFERINGS, VALIDATORS
+from engine.acp import deliverable
 
 # Tuning
 JOB_PROCESS_TIMEOUT = 30.0       # seconds to process a single job
@@ -387,11 +388,13 @@ class ACPHandler:
                 except (ValueError, TypeError) as e:
                     print(f"[ACP] Job {job_id} invalid original_job_id: {original_job_id}")
                     await asyncio.to_thread(
-                        detail.deliver, json.dumps({"error": f"Invalid original_job_id: {e}"})
+                        detail.deliver,
+                        deliverable.close_job_and_withdraw(f"Invalid original_job_id: {e}"),
                     )
             else:
                 await asyncio.to_thread(
-                    detail.deliver, json.dumps({"error": "Missing original_job_id"})
+                    detail.deliver,
+                    deliverable.close_job_and_withdraw("Missing original_job_id"),
                 )
 
         self._processed[job_id] = {"responded": True, "delivered": True}
