@@ -13,6 +13,7 @@ from engine.config import (
     USDC_ADDRESS,
     UNISWAP_V2_FACTORY,
     USDC_VIRTUAL_V3_POOL,
+    BASE_CHAIN_ID,
 )
 from engine.executor.swap_v2 import SwapExecutor
 from engine.acp import deliverable
@@ -226,7 +227,7 @@ class OrderManager:
             )
             if v2_pair:
                 route = build_sentinel_route(
-                    8453, USDC_ADDRESS, token_address,
+                    BASE_CHAIN_ID, USDC_ADDRESS, token_address,
                     USDC_VIRTUAL_V3_POOL, v2_pair,
                 )
                 route_key_str = route.canonical
@@ -594,7 +595,11 @@ class OrderManager:
     # ------------------------------------------------------------------
 
     async def recover_on_startup(self):
-        """Reconcile active orders after crash/restart. Re-subscribe to Price Service."""
+        """Reconcile active orders after crash/restart. Re-subscribe to Price Service.
+
+        Key safety rule: if an order was 'executing' and has a tx_hash,
+        check the receipt before re-arming — prevents double-execution.
+        """
         active = await self.db.get_active_orders()
         if not active:
             print("[ORDERS] Recovery: no active orders")
@@ -606,17 +611,75 @@ class OrderManager:
             order_id = order["id"]
 
             if status == "executing":
-                # Was mid-execution when crashed — back to watching
-                print(f"[ORDERS] Recovery: order {order_id} was executing → watching")
-                await self.db.update_order_status(order_id, "watching")
-                status = "watching"  # fall through to re-subscribe
+                await self._recover_executing_order(order)
+                # Re-fetch to get updated status
+                order = await self.db.get_order(order_id)
+                if not order:
+                    continue
+                status = order["status"]
 
             if status in ("watching", "funded"):
                 print(f"[ORDERS] Recovery: order {order_id} OK ({status})")
-                # Re-subscribe to Price Service
                 await self._resubscribe_order(order)
-            else:
+            elif status not in ("completed", "failed", "cancelled"):
                 print(f"[ORDERS] Recovery: order {order_id} unexpected status: {status}")
+
+    async def _recover_executing_order(self, order: dict):
+        """Handle an order that was 'executing' when we crashed.
+
+        Cases:
+          A) leg2_tx_hash exists → check receipt → finalize or re-arm
+          B) leg1 done (virtual_held > 0) but no leg2 → back to watching
+          C) no leg1 yet → back to funded (USDC still intact)
+        """
+        order_id = order["id"]
+        leg2_tx = order.get("leg2_tx_hash")
+        virtual_held = int(order.get("virtual_held", 0))
+
+        # Case A: leg 2 was sent — check if it actually landed
+        if leg2_tx and self._w3:
+            try:
+                receipt = await self._w3.eth.get_transaction_receipt(leg2_tx)
+                if receipt and receipt["status"] == 1:
+                    print(f"[ORDERS] Recovery: order {order_id} leg2 tx {leg2_tx[:10]}... CONFIRMED — finalizing")
+                    # Check if fill already recorded (idempotency)
+                    existing_fills = await self.db.get_fills_for_order(order_id)
+                    has_entry_fill = any(f.get("fill_type") == "entry" for f in (existing_fills or []))
+                    if not has_entry_fill:
+                        # Record the fill we missed
+                        await self.db.record_fill(order_id, {
+                            "fill_type": "entry",
+                            "tx_hash": leg2_tx,
+                            "amount_in": virtual_held,
+                            "expected_out": 0,
+                            "actual_out": 0,
+                            "trigger_price_usd": 0,
+                            "gas_used": receipt.get("gasUsed", 0),
+                            "slippage_pct": 0,
+                            "filled_at": datetime.now(timezone.utc).isoformat(),
+                        })
+                    await self.db.update_order(order_id, {
+                        "status": "completed",
+                        "completed_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                    print(f"[ORDERS] Recovery: order {order_id} marked completed (receipt verified)")
+                    return
+                elif receipt and receipt["status"] == 0:
+                    print(f"[ORDERS] Recovery: order {order_id} leg2 tx REVERTED — back to watching")
+                    await self.db.update_order_status(order_id, "watching")
+                    return
+            except Exception as e:
+                print(f"[ORDERS] Recovery: order {order_id} receipt check failed: {e}")
+
+        # Case B: leg 1 done, holding VIRTUAL, leg 2 not sent
+        if virtual_held > 0:
+            print(f"[ORDERS] Recovery: order {order_id} has VIRTUAL, no leg2 tx → watching")
+            await self.db.update_order_status(order_id, "watching")
+            return
+
+        # Case C: no leg 1 yet — USDC should still be in wallet
+        print(f"[ORDERS] Recovery: order {order_id} no VIRTUAL held → funded")
+        await self.db.update_order_status(order_id, "funded")
 
     async def _resubscribe_order(self, order: dict):
         """Re-subscribe a recovered order to the Price Service."""
@@ -641,7 +704,7 @@ class OrderManager:
             return
 
         route = build_sentinel_route(
-            8453, USDC_ADDRESS, token_address,
+            BASE_CHAIN_ID, USDC_ADDRESS, token_address,
             USDC_VIRTUAL_V3_POOL, v2_pair,
         )
         self._price_registry.subscribe(job_id, route, {
