@@ -16,6 +16,7 @@ from engine.config import (
     UNISWAP_V2_ROUTER,
     UNISWAP_V3_SWAP_ROUTER,
     USDC_VIRTUAL_V3_POOL,
+    BASE_CHAIN_ID,
 )
 
 # Load ABIs
@@ -128,7 +129,7 @@ class SwapExecutor:
             "from": self.wallet.address,
             "gas": gas_estimate,
             "nonce": await self.wallet.get_nonce(),
-            "chainId": 8453,
+            "chainId": BASE_CHAIN_ID,
         })
 
         receipt = await self._sign_and_send(tx)
@@ -184,7 +185,7 @@ class SwapExecutor:
             "from": self.wallet.address,
             "gas": gas_estimate,
             "nonce": await self.wallet.get_nonce(),
-            "chainId": 8453,
+            "chainId": BASE_CHAIN_ID,
         })
 
         receipt = await self._sign_and_send(tx)
@@ -233,7 +234,7 @@ class SwapExecutor:
             "from": self.wallet.address,
             "gas": gas_estimate,
             "nonce": await self.wallet.get_nonce(),
-            "chainId": 8453,
+            "chainId": BASE_CHAIN_ID,
         })
 
         receipt = await self._sign_and_send(tx)
@@ -300,7 +301,7 @@ class SwapExecutor:
             "from": self.wallet.address,
             "gas": gas_estimate,
             "nonce": await self.wallet.get_nonce(),
-            "chainId": 8453,
+            "chainId": BASE_CHAIN_ID,
         })
 
         receipt = await self._sign_and_send(tx)
@@ -344,7 +345,7 @@ class SwapExecutor:
             "from": self.wallet.address,
             "gas": gas_estimate,
             "nonce": await self.wallet.get_nonce(),
-            "chainId": 8453,
+            "chainId": BASE_CHAIN_ID,
         })
         receipt = await self._sign_and_send(tx)
         return {
@@ -382,7 +383,7 @@ class SwapExecutor:
                 "from": self.wallet.address,
                 "gas": 100000,
                 "nonce": await self.wallet.get_nonce(),
-                "chainId": 8453,
+                "chainId": BASE_CHAIN_ID,
             })
             reset_receipt = await self._sign_and_send(reset_tx)
             if reset_receipt["status"] != 1:
@@ -394,7 +395,7 @@ class SwapExecutor:
             "from": self.wallet.address,
             "gas": 100000,
             "nonce": await self.wallet.get_nonce(),
-            "chainId": 8453,
+            "chainId": BASE_CHAIN_ID,
         })
         receipt = await self._sign_and_send(tx)
         if receipt["status"] != 1:

@@ -34,12 +34,18 @@ create table if not exists orders (
     completed_at    timestamptz,
     cancelled_at    timestamptz,
     delivered_at    timestamptz,
-    failed_at       timestamptz
+    failed_at       timestamptz,
+    idempotency_key text,                              -- dedup key for trigger→execution (restart safe)
+    constraint chk_orders_status check (
+        status in ('pending','funded','watching','executing','completed','cancelled','expired','failed')
+    )
 );
 
 create index if not exists idx_orders_status on orders(status);
 create index if not exists idx_orders_job_id on orders(job_id);
 create index if not exists idx_orders_buyer on orders(buyer_address);
+create unique index if not exists ux_orders_idempotency_key
+    on orders(idempotency_key) where idempotency_key is not null;
 
 -- ============================================================
 -- Fills table — one row per swap execution (entry or exit)
@@ -48,7 +54,7 @@ create table if not exists fills (
     id              uuid primary key default uuid_generate_v4(),
     order_id        uuid references orders(id) on delete cascade,
     fill_type       text not null,                      -- entry | exit_tp | exit_sl
-    tx_hash         text not null,
+    tx_hash         text not null unique,              -- dedup: one fill per tx
     amount_in       numeric not null,
     expected_out    numeric,
     actual_out      numeric not null,
