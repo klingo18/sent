@@ -13,6 +13,7 @@ create table if not exists orders (
     buyer_address   text not null default '',
     token_address   text not null,
     token_symbol    text not null default '',            -- e.g. TRUST, ATEAM
+    token_decimals  integer not null default 18,        -- ERC20 decimals (for amount normalization)
     side            text not null default 'buy',        -- buy | sell
     usdc_amount     numeric not null,                   -- human-readable (e.g. 10.00)
     usdc_amount_raw bigint not null,                    -- on-chain (6 decimals)

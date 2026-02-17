@@ -234,12 +234,20 @@ class OrderManager:
             else:
                 print(f"[ORDERS] Job {job_id}: WARNING no V2 pair for {token_address[:10]}")
 
+        # Fetch token decimals for correct amount normalization in deliverables
+        token_decimals = 18
+        try:
+            token_decimals = await self.executor._get_decimals(token_address)
+        except Exception:
+            pass  # default 18 is safe for most Virtuals tokens
+
         # Create order record BEFORE Leg 1 (crash-safe)
         order_data = {
             "job_id": job_id,
             "buyer_address": buyer_address,
             "token_address": token_address,
             "token_symbol": token_symbol,
+            "token_decimals": token_decimals,
             "side": side,
             "usdc_amount": amount_usdc,
             "usdc_amount_raw": usdc_amount_raw,
@@ -727,10 +735,11 @@ class OrderManager:
         order = await self.db.get_order(order_id)
         token_addr = order.get("token_address", "") if order else ""
         token_sym = order.get("token_symbol", token_addr[:10]) if order else ""
+        token_decimals = order.get("token_decimals", 18) if order else 18
         payload = deliverable.open_position(
             token_address=token_addr,
             token_symbol=token_sym,
-            amount_tokens=tokens_received / 1e18,
+            amount_tokens=tokens_received / (10 ** token_decimals),
             tp_price=0,
             sl_price=0,
         )
