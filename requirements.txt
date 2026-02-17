@@ -1,0 +1,20 @@
+# Core
+web3>=6.0,<8.0
+python-dotenv>=1.0,<2.0
+pydantic>=2.0,<3.0
+
+# HTTP
+aiohttp>=3.9,<4.0
+
+# Database
+supabase>=2.0,<3.0
+
+# ACP
+virtuals-acp>=0.3.19,<1.0
+python-socketio[asyncio]>=5.0,<6.0
+websocket-client>=1.0,<2.0
+
+# Crypto
+eth-account>=0.10,<1.0
+eth-abi>=5.0,<6.0
+cryptography>=41.0,<44.0
